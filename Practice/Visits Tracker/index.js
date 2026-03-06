@@ -1,57 +1,64 @@
 import http from "http";
 import fs from "fs";
 import path from "path";
-import url from "url";
 
 const PORT = 3000;
 
 const visitsFile = path.join(process.cwd(), "visits.txt");
 const logFile = path.join(process.cwd(), "logs.txt");
 
-const logRequest = (route, method) => {
+const logRequest = async (route, method) => {
   const now = new Date();
-  const log = now.toISOString() + " | " + route + " | " + method + "\n";
-  fs.appendFile(logFile, log, (err) => {
+  const log = `${now.toISOString()} | ${route} | ${method}\n`;
+  await fs.promises.appendFile(logFile, log, (err) => {
     if (err) console.log("Error writing log file", err);
   });
 };
 
 const readLogs = async (res) => {
-  const data = await fs.promises.readFile(logFile, "utf-8");
-  if (data.trim() === "") res.end("No logs to display");
-  res.end(data);
+  try {
+    const data = await fs.promises.readFile(logFile, "utf-8");
+    if (data.trim() === "") res.end("No logs to display");
+    res.end(data);
+  } catch {
+    res.end("No logs to display");
+  }
 };
 
 const visitsCounter = async (res) => {
   const data = await fs.promises.readFile(visitsFile, "utf-8");
   const count = Number(data) + 1;
-  fs.writeFile(visitsFile, count.toString(), (err) => {
+  await fs.promises.writeFile(visitsFile, count.toString(), (err) => {
     if (err) console.log("Error while writing", err);
   });
   res.end("Visit Count:" + count.toString());
 };
 
 const readVisitsCount = async () => {
-  const data = await fs.promises.readFile(visitsFile, "utf-8");
-  if (data.trim() === "") return 0;
-  return Number(data);
+  try {
+    const data = await fs.promises.readFile(visitsFile, "utf-8");
+    if (data.trim() === "") return 0;
+    return Number(data);
+  } catch {
+    return 0;
+  }
 };
 
-const resetVisitCount = (res) => {
-  fs.writeFile(visitsFile, "0", (err) => {
+const resetVisitCount = async (res) => {
+  await fs.promises.writeFile(visitsFile, "0", (err) => {
     if (err) console.log("Error Resetting", err);
   });
   res.end("Visit Counter Reset Successfully");
 };
 
 const server = http.createServer(async (req, res) => {
-  const parsedURL = url.parse(req.url, true);
+  const parsedURL = new URL(req.url, `http://${req.headers.host}`);
   const route = parsedURL.pathname;
   const method = req.method;
 
   logRequest(route, method);
 
-  if (route === "/") res.end("Home Page");
+  if (route === "/") return res.end("Home Page");
   else if (route === "/visit") {
     visitsCounter(res);
   } else if (route === "/count") {
